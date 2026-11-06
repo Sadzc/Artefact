@@ -3,7 +3,7 @@
 **Autor:** Sebastian Diaz  
 **Período analizado:** Enero–Junio 2024 (2.400.000 transacciones)  
 **Motor:** DuckDB + DBeaver  
-**Dashboard interactivo:** [Ver en Claude Artifacts](https://claude.ai/artifact/X7ZFH3VUKD1zJMJh6XyvaZ)
+**Dashboard interactivo:** [Ver Dashboard](https://claude.ai/artifact/X7ZFH3VUKD1zJMJh6XyvaZ)
 
 > El dashboard incluye filtros por **región** (Sudamérica / Centroamérica / México / Caribe) y **producto** (P1–P5) en el gráfico de ticket regional.
 

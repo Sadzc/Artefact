@@ -1,0 +1,645 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Masterplop Analytics</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+<style>
+/* === MASTERPLOP DESIGN TOKENS === */
+/* Layout: sticky header + scrollable sections, 2-col grid on desktop */
+:root {
+  --blue:    #1A56DB;
+  --yellow:  #FBBF24;
+  --purple:  #7C3AED;
+  --blue-dk: #1340A8;
+  --blue-lt: #EBF0FD;
+  --purple-lt: #F3EEFF;
+
+  --bg:      #F7F8FC;
+  --surface: #FFFFFF;
+  --border:  #E2E6F0;
+  --fg:      #0F1733;
+  --fg2:     #4A5478;
+  --fg3:     #8891B4;
+
+  --ff-head: 'DM Sans', system-ui, sans-serif;
+  --ff-data: 'DM Mono', monospace;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:      #0C0F1E;
+    --surface: #141828;
+    --border:  #232845;
+    --fg:      #E8ECFA;
+    --fg2:     #9BA3C8;
+    --fg3:     #5A6490;
+    --blue-lt: #1A2550;
+    --purple-lt: #1E1240;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:      #0C0F1E;
+  --surface: #141828;
+  --border:  #232845;
+  --fg:      #E8ECFA;
+  --fg2:     #9BA3C8;
+  --fg3:     #5A6490;
+  --blue-lt: #1A2550;
+  --purple-lt: #1E1240;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--ff-head);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* HEADER */
+.header {
+  background: var(--blue);
+  color: #fff;
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  padding-block: 14px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--blue);
+  z-index: 11;
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.logo-mark {
+  width: 36px; height: 36px;
+  background: var(--yellow);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px; color: var(--blue-dk);
+  flex-shrink: 0;
+}
+.header-title { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+.header-sub { font-size: 12px; opacity: .75; margin-left: auto; letter-spacing: .04em; text-transform: uppercase; font-family: var(--ff-data); }
+
+/* MAIN WRAPPER */
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-block: 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* SECTION LABEL */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  margin-bottom: 12px;
+}
+
+/* KPI TILES */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 700px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kpi-tile.accent-blue { border-top: 3px solid var(--blue); }
+.kpi-tile.accent-yellow { border-top: 3px solid var(--yellow); }
+.kpi-tile.accent-purple { border-top: 3px solid var(--purple); }
+.kpi-tile.accent-green { border-top: 3px solid #10B981; }
+
+.kpi-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--fg3); }
+.kpi-value { font-size: 28px; font-weight: 700; line-height: 1.1; color: var(--fg); font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.kpi-delta { font-size: 12px; color: var(--fg2); }
+.kpi-delta .up { color: #10B981; font-weight: 600; }
+.kpi-delta .down { color: #EF4444; font-weight: 600; }
+
+/* CHART CARDS */
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) { .chart-grid { grid-template-columns: 1fr; } }
+
+.chart-grid-3 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) { .chart-grid-3 { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 20px 16px;
+  min-width: 0;
+}
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+.card-sub {
+  font-size: 11px;
+  color: var(--fg3);
+  margin-bottom: 16px;
+}
+.chart-wrap { position: relative; }
+
+/* CASHBACK BANNER */
+.cashback-banner {
+  background: var(--purple);
+  color: #fff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 700px) { .cashback-banner { grid-template-columns: repeat(2, 1fr); } }
+
+.cb-item {}
+.cb-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-bottom: 4px; }
+.cb-value { font-size: 22px; font-weight: 700; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+.cb-note { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+/* TABLE */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.data-table th {
+  font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--fg3); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--fg2); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table .num { text-align: right; font-family: var(--ff-data); }
+.data-table .rank-badge {
+  display: inline-block; width: 18px; height: 18px; border-radius: 4px;
+  background: var(--blue-lt); color: var(--blue); font-weight: 700;
+  text-align: center; line-height: 18px; font-size: 10px;
+}
+.bar-cell { display: flex; align-items: center; gap: 8px; }
+.mini-bar { height: 6px; border-radius: 3px; background: var(--blue); flex-shrink: 0; }
+
+/* PRODUCT FILTER BUTTONS */
+.prod-filters { display:flex; gap:6px; flex-wrap:wrap; }
+.pbtn {
+  font-family: var(--ff-head);
+  font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--fg2);
+  cursor: pointer; transition: all .15s;
+}
+.pbtn:hover { border-color: var(--blue); color: var(--blue); }
+.pbtn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* FOOTER */
+.footer {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-block: 14px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+  font-size: 11px;
+  color: var(--fg3);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.footer strong { color: var(--fg2); }
+</style>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo-mark">MP</div>
+    <div class="header-title">Masterplop Analytics</div>
+    <div class="header-sub">Período: Ene–Jun 2024 &nbsp;·&nbsp; Motor: DuckDB</div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- KPI TILES -->
+  <section>
+    <div class="section-label">Indicadores clave · H1 2024</div>
+    <div class="kpi-grid">
+      <div class="kpi-tile accent-blue">
+        <div class="kpi-label">Tarjetas crédito activas Q2</div>
+        <div class="kpi-value">51,037</div>
+        <div class="kpi-delta"><span class="up">+9.2%</span> vs Q1 (46,747)</div>
+      </div>
+      <div class="kpi-tile accent-yellow">
+        <div class="kpi-label">Ticket promedio Q2</div>
+        <div class="kpi-value">$5,024</div>
+        <div class="kpi-delta"><span class="up">+55%</span> vs Q1 ($3,232 USD)</div>
+      </div>
+      <div class="kpi-tile accent-purple">
+        <div class="kpi-label">Top categoría de gasto</div>
+        <div class="kpi-value">22.2%</div>
+        <div class="kpi-delta">Groceries &amp; Supermarkets</div>
+      </div>
+      <div class="kpi-tile accent-green">
+        <div class="kpi-label">Costo campaña cashback</div>
+        <div class="kpi-value">$178K</div>
+        <div class="kpi-delta">Mayo 2024 · 4,029 tarjetas</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHART ROW 1: Volumen + Ticket -->
+  <section>
+    <div class="section-label">Volumen y ticket promedio</div>
+    <div class="chart-grid">
+      <div class="card">
+        <div class="card-title">Tarjetas activas por trimestre</div>
+        <div class="card-sub">Crédito vs débito · Q1–Q2 2024</div>
+        <div class="chart-wrap"><canvas id="chartVolumen" height="180"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Ticket promedio crédito (USD)</div>
+        <div class="card-sub">Gasto total / tarjetas activas · montos positivos</div>
+        <div class="chart-wrap"><canvas id="chartTicket" height="180"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHART ROW 2: MCG + Contactless -->
+  <section>
+    <div class="section-label">Composición del gasto</div>
+    <div class="chart-grid-3">
+      <div class="card">
+        <div class="card-title">Top 10 categorías MCG</div>
+        <div class="card-sub">% del gasto total en crédito · top 10 = 92.3% del total</div>
+        <div id="mcgTable"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Adopción contactless por país</div>
+        <div class="card-sub">% del gasto vía NFC · 17 países</div>
+        <div class="chart-wrap"><canvas id="chartContactless" height="320"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TICKET REGIONAL -->
+  <section>
+    <div class="section-label">Ticket regional · América · 17 países</div>
+    <div class="card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+        <div>
+          <div class="card-title" style="margin:0">Ticket promedio por producto y país (USD)</div>
+          <div class="card-sub" style="margin-bottom:0">Crédito · Sudamérica + Centroamérica + México + Caribe · P1 (entry) → P5 (premium)</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <div class="prod-filters" id="regionBtns">
+            <button class="pbtn active" data-r="all"           onclick="filterRegion('all')">Todos</button>
+            <button class="pbtn"        data-r="sudamerica"    onclick="filterRegion('sudamerica')">Sudamérica</button>
+            <button class="pbtn"        data-r="centroamerica" onclick="filterRegion('centroamerica')">Centroamérica</button>
+            <button class="pbtn"        data-r="norteamerica"  onclick="filterRegion('norteamerica')">México</button>
+            <button class="pbtn"        data-r="caribe"        onclick="filterRegion('caribe')">Caribe</button>
+          </div>
+          <div class="prod-filters" id="prodBtns">
+            <button class="pbtn active" data-p="all" onclick="filterProd('all')">Todos</button>
+            <button class="pbtn"        data-p="P1"  onclick="filterProd('P1')">P1</button>
+            <button class="pbtn"        data-p="P2"  onclick="filterProd('P2')">P2</button>
+            <button class="pbtn"        data-p="P3"  onclick="filterProd('P3')">P3</button>
+            <button class="pbtn"        data-p="P4"  onclick="filterProd('P4')">P4</button>
+            <button class="pbtn"        data-p="P5"  onclick="filterProd('P5')">P5</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="margin-top:14px"><canvas id="chartRegional" height="200"></canvas></div>
+    </div>
+  </section>
+
+  <!-- CASHBACK BANNER -->
+  <section>
+    <div class="section-label">Campaña cashback · Mayo 2024</div>
+    <div class="cashback-banner">
+      <div class="cb-item">
+        <div class="cb-label">Tarjetas elegibles</div>
+        <div class="cb-value">4,029</div>
+        <div class="cb-note">Crédito · Chile · internacional · amt&gt;0</div>
+      </div>
+      <div class="cb-item">
+        <div class="cb-label">Tarjetas en tope USD 50</div>
+        <div class="cb-value">2,681</div>
+        <div class="cb-note">66% alcanzó el tope máximo</div>
+      </div>
+      <div class="cb-item">
+        <div class="cb-label">Costo total campaña</div>
+        <div class="cb-value">$178,609</div>
+        <div class="cb-note">USD · 7% de gasto, tope $50/tarjeta</div>
+      </div>
+      <div class="cb-item">
+        <div class="cb-label">Cashback promedio/tarjeta</div>
+        <div class="cb-value">$44.34</div>
+        <div class="cb-note">USD · 88.7% del tope máximo</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span><strong>Fuente:</strong> db_transac.csv · mcg_list.xlsx</span>
+  <span><strong>Motor:</strong> DuckDB + pipeline SQL en capas raw → dims → staging → marts</span>
+  <span><strong>Período:</strong> Enero – Junio 2024 · Moneda: USD</span>
+  <span><strong>Repo:</strong> github.com/Sadzc/Artefact</span>
+</footer>
+
+<script>
+// ---- DATA ----
+const volumenData = {
+  labels: ['2024-Q1', '2024-Q2'],
+  credito: [46747, 51037],
+  debito: [8224, 8960]
+};
+
+const ticketData = {
+  labels: ['2024-Q1', '2024-Q2'],
+  values: [3232.46, 5024.57]
+};
+
+const mcgData = [
+  { rank:1, name:'Groceries & Supermarkets', pct:22.16 },
+  { rank:2, name:'Restaurants & Dining',     pct:17.12 },
+  { rank:3, name:'Entertainment',            pct:13.40 },
+  { rank:4, name:'Travel & Transportation',  pct:10.33 },
+  { rank:5, name:'Clothing & Accessories',   pct: 8.11 },
+  { rank:6, name:'Electronics & Appliances', pct: 6.33 },
+  { rank:7, name:'Health & Wellness',        pct: 4.93 },
+  { rank:8, name:'Home Improvement',         pct: 3.82 },
+  { rank:9, name:'Automotive',               pct: 2.97 },
+  { rank:10,name:'Education & Books',        pct: 2.31 },
+];
+
+const contactlessData = {
+  labels: ['El Salvador','Nicaragua','Costa Rica','Honduras','Ecuador','Chile','Panamá','Paraguay','Uruguay','Rep. Dom.','Argentina','México','Perú','Brasil','Colombia','Bolivia','Guatemala'],
+  values: [65.09,64.49,64.44,64.28,64.16,64.02,63.98,63.78,63.77,63.69,63.61,63.57,63.52,63.51,63.48,63.48,63.25]
+};
+
+// Ticket regional — datos reales DuckDB (mart_kpi_ticket_regional)
+// 17 países · 4 regiones · 5 productos · 85 filas
+const regionalData = {
+  sudamerica: {
+    labels: ['Argentina','Bolivia','Brasil','Chile','Colombia','Ecuador','Paraguay','Perú','Uruguay'],
+    products: {
+      'P1': [65.58, 65.29, 65.61, 65.34, 65.15, 65.23, 66.42, 65.66, 66.04],
+      'P2': [113.46,114.93,114.36,114.04,114.27,114.08,109.59,114.34,114.96],
+      'P3': [181.14,177.53,180.18,179.70,180.04,182.01,185.30,179.83,182.33],
+      'P4': [572.68,569.40,573.80,568.18,573.39,569.63,617.76,577.31,560.55],
+      'P5': [969.72,957.09,974.89,974.52,979.65,967.23,943.94,968.89,952.65],
+    }
+  },
+  centroamerica: {
+    labels: ['Costa Rica','El Salvador','Guatemala','Honduras','Nicaragua','Panamá'],
+    products: {
+      'P1': [65.65, 67.12, 65.10, 65.11, 65.16, 66.02],
+      'P2': [112.37,113.98,113.79,115.27,114.41,115.04],
+      'P3': [179.03,183.76,181.37,183.00,171.65,182.68],
+      'P4': [566.79,567.59,572.83,594.22,581.80,568.51],
+      'P5': [996.84,998.57,940.08,963.39,963.25,967.99],
+    }
+  },
+  norteamerica: {
+    labels: ['México'],
+    products: {
+      'P1': [65.47],
+      'P2': [113.85],
+      'P3': [180.65],
+      'P4': [570.64],
+      'P5': [954.29],
+    }
+  },
+  caribe: {
+    labels: ['Rep. Dominicana'],
+    products: {
+      'P1': [65.14],
+      'P2': [114.95],
+      'P3': [180.20],
+      'P4': [571.14],
+      'P5': [977.75],
+    }
+  }
+};
+
+let chartRegionalInst = null;
+let activeRegion = 'all';
+let activeProd = 'all';
+
+// ---- THEME HELPERS ----
+function fg()  { return getComputedStyle(document.documentElement).getPropertyValue('--fg').trim(); }
+function fg2() { return getComputedStyle(document.documentElement).getPropertyValue('--fg2').trim(); }
+function fg3() { return getComputedStyle(document.documentElement).getPropertyValue('--fg3').trim(); }
+function border() { return getComputedStyle(document.documentElement).getPropertyValue('--border').trim(); }
+
+const BLUE   = '#1A56DB';
+const YELLOW = '#FBBF24';
+const PURPLE = '#7C3AED';
+const BLUE2  = '#93B4F5';
+
+Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+
+// ---- VOLUMEN ----
+new Chart(document.getElementById('chartVolumen'), {
+  type: 'bar',
+  data: {
+    labels: volumenData.labels,
+    datasets: [
+      { label: 'Crédito', data: volumenData.credito, backgroundColor: BLUE, borderRadius: 4, barPercentage: .6 },
+      { label: 'Débito',  data: volumenData.debito,  backgroundColor: YELLOW, borderRadius: 4, barPercentage: .6 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: true,
+    plugins: { legend: { labels: { color: fg2(), boxWidth: 12, font:{size:11} } } },
+    scales: {
+      x: { ticks: { color: fg2(), font:{size:11} }, grid: { color: border() } },
+      y: { ticks: { color: fg2(), font:{size:11}, callback: v => v.toLocaleString() }, grid: { color: border() } }
+    }
+  }
+});
+
+// ---- TICKET ----
+new Chart(document.getElementById('chartTicket'), {
+  type: 'bar',
+  data: {
+    labels: ticketData.labels,
+    datasets: [{
+      label: 'Ticket promedio USD',
+      data: ticketData.values,
+      backgroundColor: [BLUE, PURPLE],
+      borderRadius: 4, barPercentage: .5
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: fg2(), font:{size:11} }, grid: { color: border() } },
+      y: { ticks: { color: fg2(), font:{size:11}, callback: v => '$' + v.toLocaleString() }, grid: { color: border() } }
+    }
+  }
+});
+
+// ---- MCG TABLE ----
+(function() {
+  const max = mcgData[0].pct;
+  const html = `<table class="data-table">
+    <thead><tr>
+      <th>#</th><th>Categoría</th><th class="num">% gasto</th><th style="width:90px">Distribución</th>
+    </tr></thead>
+    <tbody>
+    ${mcgData.map(d => `<tr>
+      <td><span class="rank-badge">${d.rank}</span></td>
+      <td style="color:var(--fg)">${d.name}</td>
+      <td class="num" style="font-family:var(--ff-data)">${d.pct.toFixed(2)}%</td>
+      <td><div class="bar-cell"><div class="mini-bar" style="width:${(d.pct/max*80).toFixed(0)}px"></div></div></td>
+    </tr>`).join('')}
+    </tbody>
+  </table>`;
+  document.getElementById('mcgTable').innerHTML = html;
+})();
+
+// ---- CONTACTLESS ----
+new Chart(document.getElementById('chartContactless'), {
+  type: 'bar',
+  data: {
+    labels: contactlessData.labels,
+    datasets: [{
+      label: '% gasto contactless',
+      data: contactlessData.values,
+      backgroundColor: contactlessData.values.map((v,i) => i===0 ? YELLOW : BLUE2),
+      borderRadius: 3, barPercentage: .7
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { min:62, max:66, ticks:{ color:fg2(), font:{size:10}, callback: v=>v+'%' }, grid:{color:border()} },
+      y: { ticks:{ color:fg2(), font:{size:10} }, grid:{display:false} }
+    }
+  }
+});
+
+// ---- REGIONAL (con filtros región + producto) ----
+const palette = [BLUE,'#3B72E8','#6693EE','#93B4F5',YELLOW];
+
+function buildRegionalDatasets(region, prod) {
+  const PRODS = ['P1','P2','P3','P4','P5'];
+  let labels, products;
+
+  const merge = (keys) => {
+    const lbl = [];
+    const prods = {};
+    PRODS.forEach(p => prods[p] = []);
+    keys.forEach(k => {
+      lbl.push(...regionalData[k].labels);
+      PRODS.forEach(p => prods[p].push(...regionalData[k].products[p]));
+    });
+    return { labels: lbl, products: prods };
+  };
+
+  if (region === 'all') {
+    ({ labels, products } = merge(['sudamerica','centroamerica','norteamerica','caribe']));
+  } else {
+    labels = regionalData[region].labels;
+    products = regionalData[region].products;
+  }
+
+  let entries = Object.entries(products);
+  if (prod !== 'all') entries = entries.filter(([p]) => p === prod);
+
+  return {
+    labels,
+    datasets: entries.map(([p, vals]) => ({
+      label: p,
+      data: vals,
+      backgroundColor: palette[PRODS.indexOf(p)],
+      borderRadius: 2, barPercentage: .8, stack: 'stack'
+    }))
+  };
+}
+
+function renderRegional() {
+  const cfg = buildRegionalDatasets(activeRegion, activeProd);
+  if (chartRegionalInst) {
+    chartRegionalInst.data.labels = cfg.labels;
+    chartRegionalInst.data.datasets = cfg.datasets;
+    chartRegionalInst.update();
+  } else {
+    chartRegionalInst = new Chart(document.getElementById('chartRegional'), {
+      type: 'bar',
+      data: cfg,
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { labels:{ color:fg2(), boxWidth:12, font:{size:11} } } },
+        scales: {
+          x: { stacked:true, ticks:{ color:fg2(), font:{size:11} }, grid:{color:border()} },
+          y: { stacked:true, ticks:{ color:fg2(), font:{size:11}, callback: v=>'$'+v.toLocaleString() }, grid:{color:border()} }
+        }
+      }
+    });
+  }
+}
+
+function filterRegion(r) {
+  activeRegion = r;
+  document.querySelectorAll('#regionBtns .pbtn').forEach(b => b.classList.toggle('active', b.dataset.r === r));
+  renderRegional();
+}
+
+function filterProd(p) {
+  activeProd = p;
+  document.querySelectorAll('#prodBtns .pbtn').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  renderRegional();
+}
+
+renderRegional();
+</script>
+
+</body></html>

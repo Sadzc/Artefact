@@ -3,9 +3,11 @@
 **Autor:** Sebastian Diaz  
 **Período analizado:** Enero–Junio 2024 (2.400.000 transacciones)  
 **Motor:** DuckDB + DBeaver  
-**Dashboard interactivo:** [Ver Dashboard](https://claude.ai/artifact/X7ZFH3VUKD1zJMJh6XyvaZ)
+**Dashboard (Looker Studio):** [Ver Dashboard](PEGAR_AQUI_LINK_DE_LOOKER)
 
-> El dashboard incluye filtros por **región** (Sudamérica / Centroamérica / México / Caribe) y **producto** (P1–P5) en el gráfico de ticket regional.
+> El dashboard permite bajar de **trimestre a mes** en los gráficos de volumen y ticket, e incluye filtros por **región** (Sudamérica / Centroamérica / México / Caribe) y **producto** (P1–P5) en el gráfico de ticket regional.
+
+> Todo el SQL está escrito en dialecto DuckDB (usa funciones como `strftime`, `FILTER`, `read_csv` y `GROUP BY` por alias). Para otro motor habría que adaptar estas funciones.
 
 ---
 
@@ -21,10 +23,11 @@ masterplop/
 │   ├── staging/
 │   │   └── 03_stg.sql          # Limpieza y tipado → stg_transac
 │   ├── marts/
+│   │   ├── 09_mart_tarjeta_mes.sql     # Grano tarjeta × mes (base de 10, 11 y del dashboard)
 │   │   ├── 10_kpi_volumen.sql
 │   │   ├── 11_kpi_ticket_trimestral.sql
 │   │   ├── 12_kpi_ticket_regional.sql  # 17 países · 4 regiones · 5 productos
-│   │   ├── 13_kpi_top_mcg.sql
+│   │   ├── 13_kpi_top_mcg.sql          # Ranking completo (26 categorías)
 │   │   ├── 14_kpi_contactless.sql
 │   │   └── 20_cashback_mayo2024.sql
 │   └── analysis/
@@ -35,7 +38,9 @@ masterplop/
 └── README.md
 ```
 
-Orden de ejecución: `01` → `02` → `03` → `10`–`14` → `20`. Los archivos `90` y `91` son diagnósticos opcionales.
+Orden de ejecución: `01` → `02` → `03` → `09` → `10`–`14` → `20`. Los archivos `90` y `91` son diagnósticos opcionales.
+
+Para el dashboard, los marts se exportaron a CSV desde DBeaver y se importaron a Google Sheets, que es la fuente de datos de Looker Studio.
 
 ---
 
@@ -60,7 +65,7 @@ El archivo no incluye zona horaria. Para el cashback de mayo, las tarjetas son e
 Existen 2.400 registros con `amt < 0` (0,1% del total). Los montos negativos pueden representar reversas o devoluciones en cualquier tipo de producto — en crédito son notas de crédito que reducen la deuda, en débito y prepago son abonos por devolución de compra. La decisión fue **conservarlos en `stg_transac`** para no perder trazabilidad. Se excluyen con `amt > 0` en los KPIs de gasto y en el cashback, ya que el enunciado define la campaña sobre "compras realizadas en comercios", no sobre movimientos netos. El servicio es de tarjetas (no wallet), por lo que no existe lógica de saldo acumulado que justifique incluirlos.
 
 ### `is_xb`: original vs. calculado
-Se cuestionó si sobreescribir el campo `is_xb` original o agregar uno nuevo. La decisión fue **no sobreescribir**: se conservó `is_xb_original` intacto y se agregó `is_xb_calc = (ctry_card <> ctry_mrch)` como columna adicional. Esto permite auditar la discrepancia (1.440.451 filas inconsistentes, 60%) sin destruir el dato original. El cashback usa `ctry_mrch <> 'chile'` según el enunciado; la query de sensibilidad confirma que `ctry_mrch` e `is_xb_calc` producen exactamente el mismo resultado.
+Se cuestionó si sobreescribir el campo `is_xb` original o agregar uno nuevo. La decisión fue **no sobreescribir**: se conservó `is_xb_original` intacto y se agregó `is_xb_calc = (ctry_card <> ctry_mrch)` como columna adicional. Esto permite auditar la discrepancia (1.440.451 filas inconsistentes, 60%) sin destruir el dato original. El cashback usa `ctry_mrch <> 'chile'` según el enunciado; la query de sensibilidad confirma que `ctry_mrch` e `is_xb_calc` producen el mismo resultado.
 
 ### MCG 35
 El maestro `mcg_list.xlsx` contiene MCG del 1 al 25. Se encontró un MCG con id `35`. Se planteó la pregunta de qué hacer: ¿eliminarlo, reasignarlo, o investigarlo? La decisión fue **investigarlo primero**:
@@ -68,6 +73,16 @@ El maestro `mcg_list.xlsx` contiene MCG del 1 al 25. Se encontró un MCG con id 
 - Gasto positivo de USD 2.174.917 (0,51% del total), que lo ubica en el **puesto 17 de 26**, por encima de 9 categorías catalogadas. (Incluyendo montos negativos, el neto es USD 2.172.188.)
 - Sus 4.176 comercios también aparecen con MCG válidos → no se puede reasignar con certeza (el nombre de comercio no es clave única de negocio).
 - **Decisión final:** se etiqueta como `'mcg no catalogado (35)'` en el KPI de top MCG y se documenta. No se elimina ni reasigna.
+
+### Grano tarjeta × mes para el dashboard
+Los gráficos de volumen y ticket permiten bajar de trimestre a mes en Looker Studio. Para eso se creó `mart_tarjeta_mes` (una fila por tarjeta, mes y tipo de producto) en vez de guardar conteos ya calculados: el número de tarjetas distintas **no es aditivo**, porque una tarjeta activa en abril, mayo y junio se contaría 3 veces si se suman los meses.
+- Looker calcula `COUNT_DISTINCT(card_id)` y `SUM(gasto_positivo) / COUNT_DISTINCT(card_id)` al nivel que el usuario elija.
+- Los KPIs 10 y 11 también leen de este mart, para que SQL y dashboard tengan una **fuente única**.
+- Se validó que a nivel trimestral el resultado es idéntico al cálculo original sobre `stg_transac` (46.747 / 51.037 tarjetas crédito; USD 3.232,46 / 5.024,57).
+- Como el mart incluye crédito y débito, el gráfico de ticket aplica el filtro `product_type = 'credito'` en el dashboard.
+
+### Top MCG: ranking completo
+`mart_kpi_top_mcg` guarda las 26 categorías (25 del maestro + MCG 35). El top 10 se filtra al consultar y en el dashboard, para no perder el detalle del resto y poder ampliar el ranking sin modificar el SQL.
 
 ### Adopción contactless: limitación del dato
 El KPI de adopción contactless muestra el **porcentaje de gasto** donde `is_contactless = 1`. Es importante señalar que este campo viene del dato fuente y no es posible validar su veracidad desde el dataset — no existe una fuente secundaria que permita cruzarlo. El KPI refleja fielmente el dato disponible, pero en producción se recomendaría validar con el sistema de procesamiento de pagos.
@@ -104,7 +119,7 @@ Escala consistente P1→P5 en todos los países y regiones. El mart incluye toda
 | Norteamérica (México) | 1 | $65.47 | $954.29 |
 | Caribe (Rep. Dom.) | 1 | $65.14 | $977.75 |
 
-> **Nota:** la versión original del KPI 12 filtraba solo Sudamérica (`dp.region = 'sudamerica'`). Se corrigió para incluir todas las regiones, exponiendo `region` como columna en el mart. Resultado: 85 filas (17 países × 5 productos).
+> **Nota:** la versión original del KPI 12 filtraba solo Sudamérica (`dp.region = 'sudamerica'`). Se corrigió para incluir todas las regiones, exponiendo `region` como columna en el mart. Resultado: 85 filas (17 países × 5 productos). En el dashboard, el filtro de región parte en Sudamérica, que es lo que pide el KPI.
 
 ### Top 10 MCG por gasto
 | # | MCG | % gasto |
@@ -120,7 +135,7 @@ Escala consistente P1→P5 en todos los países y regiones. El mart incluye toda
 | 9 | automotive | 2,97% |
 | 10 | education and books | 2,31% |
 
-Los top 10 concentran el **92,28%** del gasto total. MCG 35 (no catalogado) representa el 0,51% y no alcanza el top 10.
+Los top 10 concentran el **91,50%** del gasto total. La tabla `mart_kpi_top_mcg` guarda el ranking completo (26 categorías); el top 10 se filtra al consultar y en el dashboard. MCG 35 (no catalogado) ocupa el puesto 17 con 0,51%.
 
 ### Adopción contactless
 Rango estrecho: **63–65%** en todos los países. El Salvador lidera (65,09%) y Guatemala cierra (63,25%). La adopción es homogénea entre mercados. Limitación: el campo `is_contactless` no puede validarse contra una fuente secundaria desde este dataset.
@@ -152,7 +167,7 @@ cashback_final = LEAST(SUM(amt) * 0.07, 50)
 El tope de USD 50 fue determinante: sin él el costo hubiera sido **2,87x mayor**.
 
 ### Validación de criterio
-La sensibilidad entre usar `ctry_mrch <> 'chile'` (criterio del enunciado) vs. `is_xb_calc = TRUE` produce **exactamente el mismo resultado** (4.029 tarjetas, USD 178.608,19), confirmando la robustez del criterio.
+La sensibilidad entre usar `ctry_mrch <> 'chile'` (criterio del enunciado) vs. `is_xb_calc = TRUE` produce el **mismo resultado**: 4.029 tarjetas en ambos casos, confirmando la robustez del criterio. El costo en esa query es USD 178.608,19; la diferencia de USD 0,69 con el resultado oficial se debe solo a que la query de sensibilidad no redondea el cashback de cada tarjeta antes de sumar.
 
 ---
 
@@ -178,12 +193,14 @@ Los montos se tratan como USD. Las medianas por país y producto son coherentes 
 sql/raw/01_raw.sql        # ajustar ruta del archivo fuente si es necesario
 sql/dims/02_dims.sql
 sql/staging/03_stg.sql
+sql/marts/09_mart_tarjeta_mes.sql
 sql/marts/10_kpi_volumen.sql
 sql/marts/11_kpi_ticket_trimestral.sql
 sql/marts/12_kpi_ticket_regional.sql
 sql/marts/13_kpi_top_mcg.sql
 sql/marts/14_kpi_contactless.sql
 sql/marts/20_cashback_mayo2024.sql
+# 3. Exportar los marts a CSV desde DBeaver e importarlos a Google Sheets (fuente de Looker Studio)
 ```
 
 ---
@@ -195,13 +212,13 @@ Usé Claude como asistente durante el desarrollo. Documento aquí los momentos d
 ### Decisiones propias que difirieron de la IA
 
 **MCG 35: investigar antes de descartar**
-Propia: ¿qué hago con un MCG que no está en el maestro? La IA presentó opciones. Decidí investigarlo antes de cualquier acción: 12.000 transacciones distribuidas uniformemente por mes, país y producto, con 4.176 comercios que también aparecen con MCG válidos. La conclusión de no reasignar se basa en que el nombre de comercio no es clave única de negocio — adoptar una reasignación automática habría sido un error.
+Decisión Propia: ¿qué hago con un MCG que no está en el maestro? La IA presentó opciones. Decidí investigarlo antes de cualquier acción: 12.000 transacciones distribuidas uniformemente por mes, país y producto, con 4.176 comercios que también aparecen con MCG válidos. La conclusión de no reasignar se basa en que el nombre de comercio no es clave única de negocio — adoptar una reasignación automática habría sido un error.
 
 **Montos negativos: conservar con criterio**
-Propia. La decisión fue mía: conservarlos en staging para trazabilidad, excluirlos solo donde el enunciado habla de "compras". No eliminarlos del dato base.
+Decisión Propia: conservarlos en staging para trazabilidad, excluirlos solo donde el enunciado habla de "compras". No eliminarlos del dato base.
 
 **`is_xb`: no sobreescribir**
-Propia. Decidí agregar `is_xb_calc` en paralelo para poder auditar la discrepancia del 60% sin destruir el dato original.
+Decisión Propia. Decidí agregar `is_xb_calc` en paralelo para poder auditar la discrepancia del 60% sin destruir el dato original.
 
 **Zona horaria: medir el impacto en vez de asumir**
 La IA sugirió no convertir a UTC. Cuestioné esa decisión y pedí cuantificar el riesgo. Diseñamos la query K juntos: 480 tarjetas en el borde de mayo. Con esa evidencia tomé la decisión informada de no convertir, documentando el margen de error.
@@ -213,10 +230,10 @@ La versión inicial del mart filtraba solo Sudamérica. Noté que la `dim_pais` 
 El mart guardaba solo el top 10 (`WHERE ranking <= 10` dentro del `CREATE TABLE`). Cuestioné que así nadie podría ver la categoría 11 en adelante. Moví el filtro fuera de la tabla: el mart guarda las 26 categorías y el top 10 se filtra al consultar y en el dashboard. Esto dejó visible que el MCG 35 ocupa el puesto 17, por encima de 9 categorías catalogadas.
 
 **Corrección del % del top 10**
-Con el ranking completo a la vista, la IA corroboro mi apraciación de que la suma de los 10 primeros no cuadraba con el 92,28% del README. Lo verifiqué con una query en DuckDB: el valor correcto es **91,50%**. Corregí el README y el dashboard.
+Después de guardar el ranking completo, revisé los resultados contra el README para confirmar que el MCG 35 estuviera bien documentado. En esa revisión apareció que la suma de los 10 primeros no cuadraba con el 92,28% del README. Lo verifiqué con una query en DuckDB: el valor correcto es **91,50%**. Corregí el README y el dashboard.
 
 **Drill-down mes/trimestre en el dashboard**
-Propia: poder subir y bajar entre trimestre y mes, como en QuickSight. Propuse pasar los marts a nivel mensual para que Looker los agregue a trimestre. La IA advirtió que el conteo de tarjetas distintas no es aditivo (una tarjeta activa en 3 meses se contaría 3 veces). Se creó `mart_tarjeta_mes` a grano tarjeta × mes, guardando `card_id`, y los KPIs 10 y 11 pasaron a leer de ese mart como fuente única.
+Decisión Propia: poder subir y bajar entre trimestre y mes, como en QuickSight. Propuse pasar los marts a nivel mensual para que Looker los agregue a trimestre. La IA advirtió que el conteo de tarjetas distintas no es aditivo (una tarjeta activa en 3 meses se contaría 3 veces). Se creó `mart_tarjeta_mes` a grano tarjeta × mes, guardando `card_id`, y los KPIs 10 y 11 pasaron a leer de ese mart como fuente única.
 
 **Ticket que no cuadraba en Looker**
 Al migrar el gráfico, el ticket dio 2.903 / 4.515 en vez de 3.232 / 5.025. Las primeras hipótesis de la IA (formato de números en Sheets) no eran: yo ya había corregido la configuración regional antes de importar. Pedí una query que calculara el ticket con 4 combinaciones de filtros. El resultado mostró que faltaba el filtro de crédito: el mart nuevo incluye débito, a diferencia del original que ya venía filtrado en SQL. También mostró que el filtro `gasto_positivo > 0` no cambia el resultado.
@@ -238,4 +255,4 @@ Noté que el KPI de contactless no se puede validar desde el dataset. Decidí do
 - **Mojibake en nombres de países:** cadena de `replace()` para corregir encoding UTF-8 mal interpretado antes de normalizar.
 - **Conteo de tarjetas en Looker daba billones:** Looker leyó `card_id` como número y lo sumaba. Solución: tipo Texto y agregación "Recuento distintivo".
 - **Drill-down mostraba meses apilados:** `mes` estaba en "Dimensión de desglose" en vez de en "Dimensión: eje X" bajo `trimestre`. Al moverlo, funcionaron las flechas para subir y bajar de nivel.
-- **Looker Studio no se conecta a DuckDB:** se exportan los marts a CSV con `COPY ... TO` (`30_export_looker.sql`) y se importan a Google Sheets como fuente del dashboard.
+- **Looker Studio no se conecta a DuckDB:** los marts se exportan a CSV desde DBeaver y se importan a Google Sheets como fuente del dashboard.

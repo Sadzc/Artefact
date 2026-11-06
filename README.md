@@ -64,7 +64,8 @@ Se cuestionó si sobreescribir el campo `is_xb` original o agregar uno nuevo. La
 
 ### MCG 35
 El maestro `mcg_list.xlsx` contiene MCG del 1 al 25. Se encontró un MCG con id `35`. Se planteó la pregunta de qué hacer: ¿eliminarlo, reasignarlo, o investigarlo? La decisión fue **investigarlo primero**:
-- 12.000 transacciones (0,5%), USD 2.172.188, distribuidas uniformemente por mes, país y tipo de producto → no es error de carga puntual.
+- 12.000 transacciones (0,5%), distribuidas uniformemente por mes, país y tipo de producto → no es error de carga puntual.
+- Gasto positivo de USD 2.174.917 (0,51% del total), que lo ubica en el **puesto 17 de 26**, por encima de 9 categorías catalogadas. (Incluyendo montos negativos, el neto es USD 2.172.188.)
 - Sus 4.176 comercios también aparecen con MCG válidos → no se puede reasignar con certeza (el nombre de comercio no es clave única de negocio).
 - **Decisión final:** se etiqueta como `'mcg no catalogado (35)'` en el KPI de top MCG y se documenta. No se elimina ni reasigna.
 
@@ -189,18 +190,18 @@ sql/marts/20_cashback_mayo2024.sql
 
 ## AI Log
 
-Usé Claude como asistente durante el desarrollo. Documento aquí los momentos donde la IA fue útil y, más importante, donde tomé decisiones distintas a lo que sugirió.
+Usé Claude como asistente durante el desarrollo. Documento aquí los momentos donde la IA fue útil y, más importante, donde tomé decisiones distintas a lo que sugirió o detecté problemas en lo propuesto.
 
 ### Decisiones propias que difirieron de la IA
 
 **MCG 35: investigar antes de descartar**
-La pregunta fue mía: ¿qué hago con un MCG que no está en el maestro? La IA presentó opciones. Decidí investigarlo antes de cualquier acción: 12.000 transacciones distribuidas uniformemente por mes, país y producto, con 4.176 comercios que también aparecen con MCG válidos. La conclusión de no reasignar se basa en que el nombre de comercio no es clave única de negocio — adoptar una reasignación automática habría sido un error.
+Propia: ¿qué hago con un MCG que no está en el maestro? La IA presentó opciones. Decidí investigarlo antes de cualquier acción: 12.000 transacciones distribuidas uniformemente por mes, país y producto, con 4.176 comercios que también aparecen con MCG válidos. La conclusión de no reasignar se basa en que el nombre de comercio no es clave única de negocio — adoptar una reasignación automática habría sido un error.
 
 **Montos negativos: conservar con criterio**
-Pregunté qué hacer con los 2.400 registros negativos. La decisión fue mía: conservarlos en staging para trazabilidad, excluirlos solo donde el enunciado habla de "compras". No eliminarlos del dato base.
+Propia. La decisión fue mía: conservarlos en staging para trazabilidad, excluirlos solo donde el enunciado habla de "compras". No eliminarlos del dato base.
 
 **`is_xb`: no sobreescribir**
-Pregunté explícitamente si era mejor sobreescribir el campo o agregar uno nuevo. Decidí agregar `is_xb_calc` en paralelo para poder auditar la discrepancia del 60% sin destruir el dato original.
+Propia. Decidí agregar `is_xb_calc` en paralelo para poder auditar la discrepancia del 60% sin destruir el dato original.
 
 **Zona horaria: medir el impacto en vez de asumir**
 La IA sugirió no convertir a UTC. Cuestioné esa decisión y pedí cuantificar el riesgo. Diseñamos la query K juntos: 480 tarjetas en el borde de mayo. Con esa evidencia tomé la decisión informada de no convertir, documentando el margen de error.
@@ -208,8 +209,23 @@ La IA sugirió no convertir a UTC. Cuestioné esa decisión y pedí cuantificar 
 **KPI 12: cobertura regional completa**
 La versión inicial del mart filtraba solo Sudamérica. Noté que la `dim_pais` incluía 17 países en 4 regiones y que el filtro dejaba fuera Centroamérica, México y Caribe. Corregí el query para exponer `region` como columna y cubrir los 17 países, sin duplicar marts por región.
 
-**Revisión crítica del código sugerido por otra IA**
-Gemini sugirió una versión "optimizada" del `90_validaciones.sql`. Al revisar línea por línea detecté que había eliminado `duplicados_exactos`, reemplazado un JOIN eficiente por un self-join que multiplica filas, y borrado las queries F–I. Rechacé esos cambios con argumentos técnicos y solo adopté la mejora real (single-pass en query A).
+**Top MCG: no perder el ranking completo**
+El mart guardaba solo el top 10 (`WHERE ranking <= 10` dentro del `CREATE TABLE`). Cuestioné que así nadie podría ver la categoría 11 en adelante. Moví el filtro fuera de la tabla: el mart guarda las 26 categorías y el top 10 se filtra al consultar y en el dashboard. Esto dejó visible que el MCG 35 ocupa el puesto 17, por encima de 9 categorías catalogadas.
+
+**Corrección del % del top 10**
+Con el ranking completo a la vista, la IA corroboro mi apraciación de que la suma de los 10 primeros no cuadraba con el 92,28% del README. Lo verifiqué con una query en DuckDB: el valor correcto es **91,50%**. Corregí el README y el dashboard.
+
+**Drill-down mes/trimestre en el dashboard**
+Propia: poder subir y bajar entre trimestre y mes, como en QuickSight. Propuse pasar los marts a nivel mensual para que Looker los agregue a trimestre. La IA advirtió que el conteo de tarjetas distintas no es aditivo (una tarjeta activa en 3 meses se contaría 3 veces). Se creó `mart_tarjeta_mes` a grano tarjeta × mes, guardando `card_id`, y los KPIs 10 y 11 pasaron a leer de ese mart como fuente única.
+
+**Ticket que no cuadraba en Looker**
+Al migrar el gráfico, el ticket dio 2.903 / 4.515 en vez de 3.232 / 5.025. Las primeras hipótesis de la IA (formato de números en Sheets) no eran: yo ya había corregido la configuración regional antes de importar. Pedí una query que calculara el ticket con 4 combinaciones de filtros. El resultado mostró que faltaba el filtro de crédito: el mart nuevo incluye débito, a diferencia del original que ya venía filtrado en SQL. También mostró que el filtro `gasto_positivo > 0` no cambia el resultado.
+
+**Consistencia y legibilidad del SQL**
+Pedí reemplazar `GROUP BY 1, 2` por nombres de columna en todos los marts. Cuando la IA agregó un CTE extra en el 09 para hacerlo "portable", cuestioné el aumento de código. Se concluyó que el repo ya es dialecto DuckDB (`strftime`, `FILTER`, `read_csv`), así que se volvió a la versión corta con `GROUP BY` por alias. Única excepción: en el 12 se agrupa por `t.ctry_mrch`, porque el alias `pais` sería ambiguo con la columna `pais` de `dim_pais`.
+
+**Colores de marca estrictos**
+La primera paleta propuesta para el dashboard incluía colores fuera de la marca (verde, azul marino). Exigí usar solo los 3 colores del desafío (#1A56DB, #FBBF24, #7C3AED) más neutros. Los 5 productos del ticket regional se diferencian con tintes de esos mismos colores.
 
 **Adopción contactless: honestidad sobre limitaciones**
 Noté que el KPI de contactless no se puede validar desde el dataset. Decidí documentar esa limitación en el README en vez de presentar el número como verdad absoluta.
@@ -220,3 +236,6 @@ Noté que el KPI de contactless no se puede validar desde el dataset. Decidí do
 - **Dos formatos de fecha mezclados:** macro `norm_fecha` para unificar separadores antes del parseo. Resultado: 0 fechas inválidas sobre 2,4M filas.
 - **Cashback con tope por tarjeta:** `LEAST(SUM(amt) * 0.07, 50)` con GROUP BY card_id — el tope aplica sobre el acumulado mensual, no por transacción.
 - **Mojibake en nombres de países:** cadena de `replace()` para corregir encoding UTF-8 mal interpretado antes de normalizar.
+- **Conteo de tarjetas en Looker daba billones:** Looker leyó `card_id` como número y lo sumaba. Solución: tipo Texto y agregación "Recuento distintivo".
+- **Drill-down mostraba meses apilados:** `mes` estaba en "Dimensión de desglose" en vez de en "Dimensión: eje X" bajo `trimestre`. Al moverlo, funcionaron las flechas para subir y bajar de nivel.
+- **Looker Studio no se conecta a DuckDB:** se exportan los marts a CSV con `COPY ... TO` (`30_export_looker.sql`) y se importan a Google Sheets como fuente del dashboard.

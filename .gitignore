@@ -1,4 +1,4 @@
 *.duckdb
 *.wal
-data/raw/*.csv
-data/raw/*.xlsx
+*.csv
+*.xlsx

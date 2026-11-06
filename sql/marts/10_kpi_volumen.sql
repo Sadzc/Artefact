@@ -1,13 +1,12 @@
 -- 10_kpi_volumen.sql
 -- KPI: Cantidad de tarjetas por tipo que transaccionaron en cada trimestre
-
 CREATE OR REPLACE TABLE mart_kpi_volumen AS
 SELECT
-    strftime(prch_date, '%Y') || '-Q' || CAST(quarter(prch_date) AS VARCHAR) AS trimestre,
+    trimestre,
     product_type,
     COUNT(DISTINCT card_id) AS n_tarjetas
-FROM stg_transac
-GROUP BY 1, 2
-ORDER BY 1, 2;
+FROM mart_tarjeta_mes
+GROUP BY trimestre, product_type
+ORDER BY trimestre, product_type;
 
 SELECT * FROM mart_kpi_volumen;
